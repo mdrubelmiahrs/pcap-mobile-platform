@@ -1,16 +1,48 @@
-const STORAGE_KEY = "pcap_leads_v1";
 const $ = (id) => document.getElementById(id);
-let leads = loadLeads();
+const CONFIG_URL = window.PCAP_SUPABASE_URL || "";
+const CONFIG_KEY = window.PCAP_SUPABASE_PUBLISHABLE_KEY || "";
+let db = null;
+let currentUser = null;
+let leads = [];
 
-function loadLeads(){
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
-  catch { return []; }
+function setAuthMessage(message) { $("authMessage").textContent = message || ""; }
+function setAppMessage(message) { $("appMessage").textContent = message || ""; }
+function showSignedIn(isSignedIn) {
+  $("authPanel").hidden = isSignedIn;
+  $("appShell").hidden = !isSignedIn;
+  $("bottomNav").hidden = !isSignedIn;
+  $("logoutBtn").hidden = !isSignedIn;
+  $("exportBtn").hidden = !isSignedIn;
 }
-function saveLeads(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(leads)); render(); }
-function escapeHTML(value=""){
+function escapeHTML(value="") {
   return String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
-function render(){
+function mapLead(row) {
+  return {
+    id: row.id,
+    company: row.company_name || "",
+    country: row.country || "",
+    industry: row.industry || "",
+    website: row.website || "",
+    source: row.source || "",
+    need: row.need || "",
+    score: Number(row.lead_score) || 0,
+    status: row.status || "New",
+    createdAt: row.created_at
+  };
+}
+async function loadLeads() {
+  setAppMessage("Loading cloud leads…");
+  const { data, error } = await db.from("leads").select("*").order("created_at", { ascending: false });
+  if (error) {
+    setAppMessage("Could not load leads: " + error.message);
+    return;
+  }
+  leads = (data || []).map(mapLead);
+  render();
+  setAppMessage("");
+}
+function render() {
   $("totalCount").textContent = leads.length;
   $("qualifiedCount").textContent = leads.filter(x=>["Qualified","Proposal"].includes(x.status)).length;
   $("contactedCount").textContent = leads.filter(x=>["Contacted","Replied","Proposal"].includes(x.status)).length;
@@ -30,54 +62,141 @@ function render(){
       <div class="lead-bottom">
         <span class="status ${escapeHTML(x.status)}">${escapeHTML(x.status)}</span>
         <div class="lead-actions">
-          <button class="small-btn" data-action="status" data-id="${x.id}">Update status</button>
-          <button class="small-btn" data-action="delete" data-id="${x.id}">Delete</button>
+          <button class="small-btn" data-action="status" data-id="${escapeHTML(x.id)}">Update status</button>
+          <button class="small-btn" data-action="delete" data-id="${escapeHTML(x.id)}">Delete</button>
         </div>
       </div>
     </article>`).join("");
   $("emptyState").style.display = filtered.length ? "none" : "block";
 }
-function openDialog(){ $("leadDialog").showModal(); }
-$("addLeadBtn").addEventListener("click",openDialog);
-$("navAdd").addEventListener("click",openDialog);
-$("closeDialog").addEventListener("click",()=>$("leadDialog").close());
-$("searchInput").addEventListener("input",render);
-$("statusFilter").addEventListener("change",render);
+function openDialog() { $("leadDialog").showModal(); }
 
-$("leadForm").addEventListener("submit",e=>{
+async function signIn(email, password) {
+  setAuthMessage("Signing in…");
+  const { error } = await db.auth.signInWithPassword({ email, password });
+  if (error) setAuthMessage(error.message);
+}
+async function signUp(email, password) {
+  setAuthMessage("Creating account…");
+  const { data, error } = await db.auth.signUp({ email, password });
+  if (error) {
+    setAuthMessage(error.message);
+    return;
+  }
+  if (!data.session) {
+    setAuthMessage("Account created. Check your email for the confirmation link, then return here and sign in.");
+  } else {
+    setAuthMessage("Account created and signed in.");
+  }
+}
+
+$("authForm").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value;
+  await signIn(email, password);
+});
+$("signupBtn").addEventListener("click", async () => {
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value;
+  if (!email || password.length < 8) {
+    setAuthMessage("Enter a valid email and a password with at least 8 characters.");
+    return;
+  }
+  await signUp(email, password);
+});
+$("logoutBtn").addEventListener("click", async () => {
+  const { error } = await db.auth.signOut();
+  if (error) setAuthMessage(error.message);
+});
+$("addLeadBtn").addEventListener("click", openDialog);
+$("navAdd").addEventListener("click", openDialog);
+$("closeDialog").addEventListener("click", ()=>$("leadDialog").close());
+$("searchInput").addEventListener("input", render);
+$("statusFilter").addEventListener("change", render);
+
+$("leadForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!currentUser) return;
   const f = new FormData(e.currentTarget);
   const company = String(f.get("company")||"").trim();
-  if(!company) return;
-  leads.unshift({
-    id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
-    company, country:f.get("country"), industry:f.get("industry"),
-    website:String(f.get("website")||"").trim(),
-    source:String(f.get("source")||"").trim(),
-    need:String(f.get("need")||"").trim(),
-    score:Math.max(0,Math.min(100,Number(f.get("score")||0))),
-    status:f.get("status"), createdAt:new Date().toISOString()
-  });
-  saveLeads(); e.currentTarget.reset(); $("leadDialog").close();
+  if (!company) return;
+  const record = {
+    user_id: currentUser.id,
+    company_name: company,
+    country: String(f.get("country")||""),
+    industry: String(f.get("industry")||""),
+    website: String(f.get("website")||"").trim(),
+    source: String(f.get("source")||"").trim(),
+    need: String(f.get("need")||"").trim(),
+    lead_score: Math.max(0, Math.min(100, Number(f.get("score")||0))),
+    status: String(f.get("status")||"New")
+  };
+  setAppMessage("Saving lead to cloud…");
+  const { error } = await db.from("leads").insert(record);
+  if (error) {
+    setAppMessage("Save failed: " + error.message);
+    return;
+  }
+  e.currentTarget.reset();
+  $("leadDialog").close();
+  await loadLeads();
 });
-$("leadList").addEventListener("click",e=>{
-  const b=e.target.closest("button[data-action]"); if(!b) return;
-  const item=leads.find(x=>x.id===b.dataset.id); if(!item) return;
-  if(b.dataset.action==="delete"){
-    if(confirm(`Delete ${item.company}?`)){ leads=leads.filter(x=>x.id!==item.id); saveLeads(); }
+
+$("leadList").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-action]");
+  if (!b) return;
+  const item = leads.find(x=>x.id===b.dataset.id);
+  if (!item) return;
+  if (b.dataset.action === "delete") {
+    if (!confirm(`Delete ${item.company}?`)) return;
+    const { error } = await db.from("leads").delete().eq("id", item.id);
+    if (error) { setAppMessage("Delete failed: " + error.message); return; }
+    await loadLeads();
   } else {
-    const statuses=["New","Researching","Qualified","Contacted","Replied","Proposal","Won","Lost"];
-    const next=prompt("Enter new status:\n"+statuses.join(", "),item.status);
-    if(next && statuses.includes(next)){ item.status=next; saveLeads(); }
-    else if(next) alert("Status not recognized. Please use one of the listed values.");
+    const statuses = ["New","Researching","Qualified","Contacted","Replied","Proposal","Won","Lost"];
+    const next = prompt("Enter new status:\n" + statuses.join(", "), item.status);
+    if (!next) return;
+    if (!statuses.includes(next)) { alert("Status not recognized. Please use one of the listed values."); return; }
+    const { error } = await db.from("leads").update({ status: next }).eq("id", item.id);
+    if (error) { setAppMessage("Update failed: " + error.message); return; }
+    await loadLeads();
   }
 });
-$("exportBtn").addEventListener("click",()=>{
-  const blob=new Blob([JSON.stringify(leads,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob); const a=document.createElement("a");
-  a.href=url; a.download="pcap-leads-backup.json"; a.click(); URL.revokeObjectURL(url);
+
+$("exportBtn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(leads, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "pcap-cloud-leads-backup.json"; a.click();
+  URL.revokeObjectURL(url);
 });
-if("serviceWorker" in navigator && location.protocol.startsWith("http")){
-  window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+
+async function init() {
+  if (!window.supabase || !CONFIG_URL.startsWith("https://") || !CONFIG_KEY.startsWith("sb_publishable_")) {
+    showSignedIn(false);
+    setAuthMessage("Configuration missing. Add your Supabase Project URL and Publishable Key in config.js, then reload.");
+    return;
+  }
+  db = window.supabase.createClient(CONFIG_URL, CONFIG_KEY);
+  const { data, error } = await db.auth.getSession();
+  if (error) {
+    showSignedIn(false);
+    setAuthMessage("Session check failed: " + error.message);
+    return;
+  }
+  currentUser = data.session ? data.session.user : null;
+  showSignedIn(!!currentUser);
+  if (currentUser) await loadLeads();
+  db.auth.onAuthStateChange(async (_event, session) => {
+    currentUser = session ? session.user : null;
+    showSignedIn(!!currentUser);
+    if (currentUser) await loadLeads();
+    else { leads = []; render(); setAuthMessage(""); }
+  });
 }
-render();
+
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+}
+init();
