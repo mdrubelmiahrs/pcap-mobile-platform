@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#14263d">
+  <meta name="description" content="Mobile-first Packaging Client Acquisition Platform">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+  <title>PCAP | Client Hub</title>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-mark">P</div>
+    <div class="brand-copy"><strong>PCAP</strong><span>Packaging Client Hub</span></div>
+    <button class="icon-btn" id="exportBtn" aria-label="Export leads">⇩</button>
+  </header>
+
+  <main class="app-shell">
+    <section class="welcome">
+      <div>
+        <p class="eyebrow">USA & CANADA · CLIENT ACQUISITION</p>
+        <h1>Business overview</h1>
+        <p class="muted">Find, qualify and manage packaging design leads.</p>
+      </div>
+      <span class="local-pill">MVP · Local mode</span>
+    </section>
+
+    <section class="stats-grid" aria-label="Lead summary">
+      <article class="stat-card"><span>Total leads</span><strong id="totalCount">0</strong><small>All saved companies</small></article>
+      <article class="stat-card"><span>Qualified</span><strong id="qualifiedCount">0</strong><small>Ready for review</small></article>
+      <article class="stat-card"><span>Contacted</span><strong id="contactedCount">0</strong><small>Outreach recorded</small></article>
+      <article class="stat-card"><span>Won</span><strong id="wonCount">0</strong><small>Converted clients</small></article>
+    </section>
+
+    <section class="panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">WORKSPACE</p><h2>Lead management</h2></div>
+        <button class="primary-btn" id="addLeadBtn">＋ Add lead</button>
+      </div>
+      <div class="toolbar">
+        <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search company, industry, country"></label>
+        <select id="statusFilter" aria-label="Filter by status">
+          <option value="all">All statuses</option>
+          <option>New</option><option>Researching</option><option>Qualified</option>
+          <option>Contacted</option><option>Replied</option><option>Proposal</option><option>Won</option><option>Lost</option>
+        </select>
+      </div>
+      <div class="lead-list" id="leadList"></div>
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">⌕</div>
+        <h3>No leads found</h3>
+        <p>Add a company to start building your client pipeline.</p>
+      </div>
+    </section>
+
+    <section class="panel workflow-panel">
+      <p class="eyebrow">NEXT DEVELOPMENT MILESTONES</p>
+      <h2>Build your acquisition engine</h2>
+      <div class="milestone"><span class="step done">✓</span><div><strong>Mobile foundation</strong><small>Dashboard and lead workspace</small></div><span class="state">Prototype</span></div>
+      <div class="milestone"><span class="step">2</span><div><strong>Cloud database</strong><small>Secure sync across devices</small></div><span class="state">Next</span></div>
+      <div class="milestone"><span class="step">3</span><div><strong>AI lead research</strong><small>Company analysis and scoring</small></div><span class="state">Planned</span></div>
+      <div class="milestone"><span class="step">4</span><div><strong>Outreach and CRM</strong><small>Approval-based communication</small></div><span class="state">Planned</span></div>
+    </section>
+
+    <footer>PCAP · Mobile-first MVP · Your data stays in this browser for now.</footer>
+  </main>
+
+  <nav class="bottom-nav">
+    <a class="active" href="#top"><span>▦</span>Dashboard</a>
+    <a href="#leadList"><span>▤</span>Leads</a>
+    <button id="navAdd"><span>＋</span>Add lead</button>
+    <a href="#milestones"><span>◷</span>Roadmap</a>
+  </nav>
+
+  <dialog id="leadDialog">
+    <form id="leadForm" method="dialog">
+      <div class="dialog-head"><div><p class="eyebrow">NEW PROSPECT</p><h2>Add a company</h2></div><button type="button" class="close-btn" id="closeDialog">×</button></div>
+      <label>Company name<input name="company" required maxlength="100" placeholder="e.g. Northstar Nutrition"></label>
+      <div class="form-row">
+        <label>Country<select name="country"><option>USA</option><option>Canada</option></select></label>
+        <label>Industry<select name="industry"><option>Supplement</option><option>Cosmetics</option><option>Pet Food</option><option>Food & Spice</option><option>Other</option></select></label>
+      </div>
+      <label>Website<input name="website" type="url" placeholder="https://example.com"></label>
+      <label>Contact source<input name="source" placeholder="Company website, LinkedIn, referral..."></label>
+      <label>Potential packaging need<textarea name="need" rows="3" placeholder="What design opportunity did you observe?"></textarea></label>
+      <div class="form-row">
+        <label>Lead score (0–100)<input name="score" type="number" min="0" max="100" value="50"></label>
+        <label>Status<select name="status"><option>New</option><option>Researching</option><option>Qualified</option><option>Contacted</option><option>Replied</option><option>Proposal</option><option>Won</option><option>Lost</option></select></label>
+      </div>
+      <p class="form-note">Only save business information you have a legitimate reason to use. Verify details before contacting a prospect.</p>
+      <button class="primary-btn submit-btn" type="submit">Save lead</button>
+    </form>
+  </dialog>
+  <script src="app.js"></script>
+</body>
+</html>
